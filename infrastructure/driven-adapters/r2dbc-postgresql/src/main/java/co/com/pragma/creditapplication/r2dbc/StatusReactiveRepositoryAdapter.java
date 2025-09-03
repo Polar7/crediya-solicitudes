@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 public class StatusReactiveRepositoryAdapter extends ReactiveAdapterOperations<
         Status,
         StatusEntity,
-        String,
+        Long,
         StatusReactiveRepository
 > implements StatusRepository {
 

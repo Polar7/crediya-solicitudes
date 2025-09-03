@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -29,15 +30,25 @@ public class Handler {
 
     public Mono<ServerResponse> listenPOSTUseCase(ServerRequest serverRequest) {
         log.info("Received POST request create credit application");
-        return serverRequest.bodyToMono(CreateCreditApplicationDTO.class)
-                .flatMap(validationUtil::validate)
-                .map(creditApplicationMapper::toModel)
-                .flatMap(creditUseCase::createCreditApplication)
+
+        return serverRequest.principal()
+                .cast(JwtAuthenticationToken.class)
+                .flatMap(principal -> {
+                    String userId = principal.getTokenAttributes().get("sub").toString();
+                    return serverRequest.bodyToMono(CreateCreditApplicationDTO.class)
+                            .flatMap(validationUtil::validate)
+                            .map(creditApplicationMapper::toModel)
+                            .flatMap(creditApplication -> {
+                                creditApplication.setIdClient(Long.valueOf(userId));
+                                return creditUseCase.createCreditApplication(creditApplication);
+                            });
+                })
                 .doOnSuccess(aVoid -> log.info(MESSAGE_CREATED_CREDIT))
                 .thenReturn(GenericResponseDto.of(HttpStatus.OK.value(), "OK", MESSAGE_CREATED_CREDIT))
                 .flatMap(response -> ServerResponse.ok()
                         .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(response));
+                        .bodyValue(response))
+                .switchIfEmpty(ServerResponse.status(HttpStatus.UNAUTHORIZED).build());
     }
 
 }

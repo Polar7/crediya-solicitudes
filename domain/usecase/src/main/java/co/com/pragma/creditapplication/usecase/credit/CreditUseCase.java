@@ -8,6 +8,7 @@ import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
 import co.com.pragma.creditapplication.model.status.Status;
 import co.com.pragma.creditapplication.model.status.gateways.StatusRepository;
 import co.com.pragma.creditapplication.usecase.exception.NotFoundException;
+import co.com.pragma.creditapplication.usecase.exception.SelfServiceViolationException;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +25,7 @@ public class CreditUseCase {
 
     public Mono<String> createCreditApplication(CreditApplication creditApplication) {
         return validateLoanType(creditApplication.getLoanTypeId())
-                .then(Mono.defer(() -> getEmailUser(creditApplication.getDocNumberClient())))
+                .then(Mono.defer(() -> validateUser(creditApplication.getDocNumberClient(), creditApplication.getIdClient())))
                 .flatMap(email -> {
                     creditApplication.setEmailClient(email);
                     return getPendingStatusId();
@@ -42,13 +43,18 @@ public class CreditUseCase {
                 .then();
     }
 
-    private Mono<String> getEmailUser(String docNumberClient) {
+    private Mono<String> validateUser(String docNumberClient, Long idClient) {
         return clientFeign.findByDocNumberClient(docNumberClient)
                 .flatMap(userExist -> {
-                    if (userExist.found()) {
-                        return Mono.just(userExist.email());
+                    if (!userExist.found()) {
+                        return Mono.error(new NotFoundException("User not found"));
                     }
-                    return Mono.error(new NotFoundException("User not found"));
+
+                    if (!userExist.id().equals(idClient)) {
+                        return Mono.error(new SelfServiceViolationException("Only the holder can create the credit application."));
+                    }
+
+                    return Mono.just(userExist.email());
                 });
     }
 

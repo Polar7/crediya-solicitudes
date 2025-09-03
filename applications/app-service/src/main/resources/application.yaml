@@ -5,10 +5,6 @@ spring:
     name: "credit-aplication-microservice"
   devtools:
     add-properties: false
-  h2:
-    console:
-      enabled: true
-      path: "/h2"
   profiles:
     include: null
 management:
@@ -64,3 +60,7 @@ resilience4j:
 routes:
   paths:
     applications: "/api/v1/solicitudes"
+
+jwt:
+  token:
+    secret-key: mi_clave_super_segura_1234567890!@#

@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 @Builder(toBuilder = true)
 public class CreditApplication {
 
+    private Long idClient;
+
     private String docNumberClient;
 
     private BigDecimal amount;
