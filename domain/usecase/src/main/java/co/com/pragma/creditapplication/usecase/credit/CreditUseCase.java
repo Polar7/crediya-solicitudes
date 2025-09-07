@@ -1,16 +1,26 @@
 package co.com.pragma.creditapplication.usecase.credit;
 
+import co.com.pragma.creditapplication.model.client.ClientInfo;
 import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
+import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
 import co.com.pragma.creditapplication.model.loantype.gateways.LoanTypeRepository;
+import co.com.pragma.creditapplication.model.page.Page;
 import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
 import co.com.pragma.creditapplication.model.status.Status;
 import co.com.pragma.creditapplication.model.status.gateways.StatusRepository;
 import co.com.pragma.creditapplication.usecase.exception.NotFoundException;
 import co.com.pragma.creditapplication.usecase.exception.SelfServiceViolationException;
 import lombok.RequiredArgsConstructor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 public class CreditUseCase {
@@ -35,6 +45,30 @@ public class CreditUseCase {
                     return creditApplicationRepository.save(creditApplication);
                 })
                 .thenReturn("Credit application successfully created.");
+    }
+
+    public Mono<Page<SelectCreditApplication>> getAllCreditApplicationsPendingByFilters(String emailClient, String loanTypeName, int page, int size) {
+        Flux<SelectCreditApplication> listFoundFlux = creditApplicationRepository.findAllPendingByFiltersPaged(emailClient, loanTypeName, page, size);
+
+        Mono<Map<String, ClientInfo>> clientsByEmailMono = listFoundFlux
+                .map(SelectCreditApplication::getEmailClient)
+                .distinct()
+                .collectList()
+                .flatMap(clientFeign::findClientsByEmails)
+                .flatMapMany(Flux::fromIterable)
+                .collectMap(ClientInfo::email);
+
+        Mono<List<SelectCreditApplication>> enrichedContent = enrichContentSelectPendingApplications(listFoundFlux, clientsByEmailMono);
+
+        Mono<Long> total = creditApplicationRepository.countAllPendingByFilters(emailClient, loanTypeName);
+
+        return Mono.zip(enrichedContent, total)
+                .map(tuple -> {
+                    Page<SelectCreditApplication> pageResult = new Page<>();
+                    pageResult.setContent(tuple.getT1());
+                    pageResult.setTotalElements(tuple.getT2());
+                    return pageResult;
+                });
     }
 
     private Mono<Void> validateLoanType(Long loanTypeId) {
@@ -62,6 +96,53 @@ public class CreditUseCase {
         return statusRepository.findByName(LoanStatusEnum.PENDING_REVIEW.getName())
                 .switchIfEmpty(Mono.error(new NotFoundException("Status not found")))
                 .map(Status::getId);
+    }
+
+    private BigDecimal calculateQuoteMonthCredit(BigDecimal amount, int term, double interestRate, String loanType) {
+        BigDecimal monthlyInterestRate = BigDecimal.valueOf(interestRate)
+                .divide(BigDecimal.valueOf(1200), 10, RoundingMode.HALF_UP);
+
+        if ("HIPOTECARIO".equalsIgnoreCase(loanType)) {
+            BigDecimal base = BigDecimal.ONE.add(monthlyInterestRate);
+
+            BigDecimal denominator = BigDecimal.ONE.subtract(
+                    BigDecimal.ONE.divide(base.pow(term, new MathContext(10, RoundingMode.HALF_UP)), 10, RoundingMode.HALF_UP)
+            );
+
+            BigDecimal numerator = amount.multiply(monthlyInterestRate);
+
+            return numerator.divide(denominator, 2, RoundingMode.HALF_UP);
+        } else {
+            BigDecimal capitalAmortization = amount.divide(BigDecimal.valueOf(term), 2, RoundingMode.HALF_UP);
+            BigDecimal monthlyInterest = amount.multiply(monthlyInterestRate);
+
+            return capitalAmortization.add(monthlyInterest);
+        }
+    }
+
+    private Mono<List<SelectCreditApplication>> enrichContentSelectPendingApplications(Flux<SelectCreditApplication> selectCreditApplicationFlux, Mono<Map<String, ClientInfo>> clientsByEmailMono) {
+        return selectCreditApplicationFlux
+                .collectList()
+                .zipWith(clientsByEmailMono)
+                .map(tuple -> {
+                    List<SelectCreditApplication> applications = tuple.getT1();
+                    Map<String, ClientInfo> clientsByEmail = tuple.getT2();
+
+                    applications.forEach(application -> {
+                        String email = application.getEmailClient();
+
+                        ClientInfo client = clientsByEmail.get(email);
+                        if (client != null) {
+                            application.setNameClient(client.fullName());
+                            application.setSalaryBaseClient(client.salaryBase());
+                        }
+
+                        application.setAmountMonthlyApplication(
+                                calculateQuoteMonthCredit(application.getAmount(), application.getTerm(), application.getInterestRate(), application.getLoanTypeName())
+                        );
+                    });
+                    return applications;
+                });
     }
 
 }

@@ -60,6 +60,7 @@ resilience4j:
 routes:
   paths:
     applications: "/api/v1/solicitudes"
+    applicationsPending: "/api/v1/solicitudes/pendientes"
 
 jwt:
   token:

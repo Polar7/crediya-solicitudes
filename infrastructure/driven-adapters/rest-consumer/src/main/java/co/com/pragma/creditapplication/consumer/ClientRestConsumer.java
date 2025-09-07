@@ -1,6 +1,7 @@
 package co.com.pragma.creditapplication.consumer;
 
 import co.com.pragma.creditapplication.consumer.dto.GenericResponseFeignDTO;
+import co.com.pragma.creditapplication.model.client.ClientInfo;
 import co.com.pragma.creditapplication.model.client.ValidatedClient;
 import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -10,6 +11,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,20 @@ public class ClientRestConsumer implements ClientFeign {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<GenericResponseFeignDTO<ValidatedClient>>() {})
                     .map(dto -> new ValidatedClient(dto.detail().found(), dto.detail().id(), dto.detail().email()));
+        });
+    }
+
+    @Override
+    public Mono<List<ClientInfo>> findClientsByEmails(List<String> emails) {
+        return Mono.deferContextual(contextView -> {
+            String jwtToken = contextView.get("jwt");
+            return client.post()
+                    .uri("/api/v1/usuarios/emails")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtToken)
+                    .bodyValue(emails)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<GenericResponseFeignDTO<List<ClientInfo>>>() {})
+                    .map(GenericResponseFeignDTO::detail);
         });
     }
 

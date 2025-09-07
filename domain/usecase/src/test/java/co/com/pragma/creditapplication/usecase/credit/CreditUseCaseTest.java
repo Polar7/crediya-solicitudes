@@ -1,8 +1,10 @@
 package co.com.pragma.creditapplication.usecase.credit;
 
+import co.com.pragma.creditapplication.model.client.ClientInfo;
 import co.com.pragma.creditapplication.model.client.ValidatedClient;
 import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
+import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
 import co.com.pragma.creditapplication.model.loantype.LoanType;
 import co.com.pragma.creditapplication.model.loantype.gateways.LoanTypeRepository;
@@ -18,10 +20,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -67,7 +71,7 @@ class CreditUseCaseTest {
         @Test
         void shouldCreateCreditApplication() {
             when(loanTypeRepository.findById(validCreditApplication.getLoanTypeId())).thenReturn(Mono.just(validLoanType));
-            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, validCreditApplication.getIdClient(),"email-valid@pragma.com")));
+            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, validCreditApplication.getIdClient(), "email-valid@pragma.com")));
             when(statusRepository.findByName(LoanStatusEnum.PENDING_REVIEW.getName())).thenReturn(Mono.just(new Status(1L, "PENDIENTE", "Revision pendiente por parte del asesor")));
             when(creditApplicationRepository.save(any(CreditApplication.class))).thenReturn(Mono.just(validCreditApplication));
 
@@ -135,7 +139,7 @@ class CreditUseCaseTest {
         @Test
         void shouldThrowExceptionWhenPendingStatusNotFound() {
             when(loanTypeRepository.findById(anyLong())).thenReturn(Mono.just(new LoanType()));
-            when(clientFeign.findByDocNumberClient(anyString())).thenReturn(Mono.just(new ValidatedClient(true, 1L,"test@email.com")));
+            when(clientFeign.findByDocNumberClient(anyString())).thenReturn(Mono.just(new ValidatedClient(true, 1L, "test@email.com")));
             when(statusRepository.findByName(anyString())).thenReturn(Mono.empty());
 
             StepVerifier.create(creditUseCase.createCreditApplication(validCreditApplication))
@@ -148,6 +152,73 @@ class CreditUseCaseTest {
             verify(clientFeign).findByDocNumberClient(anyString());
             verify(statusRepository).findByName(anyString());
             verify(creditApplicationRepository, never()).save(any(CreditApplication.class));
+        }
+
+    }
+
+    @Nested
+    class GetAllCreditApplicationsPendingByFilters {
+
+        @Test
+        void shouldReturnEnrichedPagedResult() {
+            String emailClient = null;
+            String loanTypeName = null;
+            int page = 0;
+            int size = 10;
+
+            SelectCreditApplication app1 = new SelectCreditApplication(
+                    new BigDecimal("100000"), 240, "HIPOTECARIO", 5.0, "PENDIENTE",
+                    null, "test1@example.com", null, null
+            );
+            SelectCreditApplication app2 = new SelectCreditApplication(
+                    new BigDecimal("50000"), 180, "CONSUMO", 5.0, "PENDIENTE",
+                    null, "test2@example.com", null, null
+            );
+
+            ClientInfo client1Info = new ClientInfo("test1@example.com", "John Doe", new BigDecimal("5000"));
+            ClientInfo client2Info = new ClientInfo("test2@example.com", "Jane Smith", new BigDecimal("6000"));
+
+            when(creditApplicationRepository.findAllPendingByFiltersPaged(emailClient, loanTypeName, page, size))
+                    .thenReturn(Flux.just(app1, app2));
+            when(clientFeign.findClientsByEmails(anyList()))
+                    .thenReturn(Mono.just(List.of(client1Info, client2Info)));
+            when(creditApplicationRepository.countAllPendingByFilters(emailClient, loanTypeName))
+                    .thenReturn(Mono.just(2L));
+
+            StepVerifier.create(creditUseCase.getAllCreditApplicationsPendingByFilters(emailClient, loanTypeName, page, size))
+                    .expectNextMatches(pageResult -> {
+                        if (pageResult.getTotalElements() != 2L) {
+                            return false;
+                        }
+
+                        List<SelectCreditApplication> content = pageResult.getContent();
+                        if (content.size() != 2) {
+                            return false;
+                        }
+
+                        SelectCreditApplication result1 = content.stream()
+                                .filter(app -> app.getEmailClient().equals("test1@example.com"))
+                                .findFirst().orElseThrow();
+
+                        if (!result1.getNameClient().equals("John Doe") ||
+                                result1.getSalaryBaseClient().compareTo(new BigDecimal("5000")) != 0 ||
+                                result1.getAmountMonthlyApplication() == null) {
+                            return false;
+                        }
+
+                        SelectCreditApplication result2 = content.stream()
+                                .filter(app -> app.getEmailClient().equals("test2@example.com"))
+                                .findFirst().orElseThrow();
+
+                        if (!result2.getNameClient().equals("Jane Smith") ||
+                                result2.getSalaryBaseClient().compareTo(new BigDecimal("6000")) != 0 ||
+                                result2.getAmountMonthlyApplication() == null) {
+                            return false;
+                        }
+
+                        return true;
+                    })
+                    .verifyComplete();
         }
 
     }

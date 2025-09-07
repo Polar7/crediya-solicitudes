@@ -24,7 +24,6 @@ public class JwtToContextFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
 
-        // Saltar swagger y api-docs
         if (EXCLUDED_PATHS.stream().anyMatch(path::startsWith)) {
             return chain.filter(exchange);
         }
@@ -37,7 +36,8 @@ public class JwtToContextFilter implements WebFilter {
                                 .contextWrite(ctx -> ctx.put("jwt", tokenValue));
                     }
                     return chain.filter(exchange);
-                });
+                })
+                .switchIfEmpty(chain.filter(exchange));
     }
 
 }

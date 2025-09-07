@@ -1,6 +1,7 @@
 package co.com.pragma.creditapplication.api;
 
 import co.com.pragma.creditapplication.api.dto.CreateCreditApplicationDTO;
+import co.com.pragma.creditapplication.api.dto.FilterSelectCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.GenericResponseDto;
 import co.com.pragma.creditapplication.api.mapper.CreditApplicationMapper;
 import co.com.pragma.creditapplication.usecase.credit.CreditUseCase;
@@ -49,6 +50,19 @@ public class Handler {
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(response))
                 .switchIfEmpty(ServerResponse.status(HttpStatus.UNAUTHORIZED).build());
+    }
+
+    public Mono<ServerResponse> listenPOSTFindAllPendingUseCase(ServerRequest serverRequest) {
+        log.info("Received POST request Get all credit applications pending by filters");
+
+        return serverRequest.bodyToMono(FilterSelectCreditApplicationDTO.class)
+                .flatMap(validationUtil::validate)
+                .flatMap(filters -> creditUseCase.getAllCreditApplicationsPendingByFilters(filters.emailClient(), filters.loanTypeName(), filters.page(), filters.size()))
+                .doOnSuccess(aVoid -> log.info("List found successfully"))
+                .map(pageList -> GenericResponseDto.of(HttpStatus.OK.value(), "OK", pageList))
+                .flatMap(response -> ServerResponse.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(response));
     }
 
 }

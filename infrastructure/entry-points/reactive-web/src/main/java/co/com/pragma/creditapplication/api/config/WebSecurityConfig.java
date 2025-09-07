@@ -34,6 +34,7 @@ public class WebSecurityConfig {
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .pathMatchers("/api/v1/solicitudes").hasRole(RolEnum.CLIENT.getName())
+                        .pathMatchers("/api/v1/solicitudes/pendientes").hasRole(RolEnum.BANKER.getName())
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

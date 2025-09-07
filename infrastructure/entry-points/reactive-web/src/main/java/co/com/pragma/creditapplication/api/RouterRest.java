@@ -2,6 +2,7 @@ package co.com.pragma.creditapplication.api;
 
 import co.com.pragma.creditapplication.api.config.ApplicationPath;
 import co.com.pragma.creditapplication.api.dto.CreateCreditApplicationDTO;
+import co.com.pragma.creditapplication.api.dto.FilterSelectCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.GenericResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -55,10 +56,41 @@ public class RouterRest {
                                     @ApiResponse(responseCode = "500", description = "Error interno del servidor")
                             }
                     )
+            ),
+            @RouterOperation(path = "/api/v1/solicitudes/pendientes",
+                    produces = "application/json",
+                    method = POST,
+                    beanClass = Handler.class,
+                    beanMethod = "listenPOSTFindAllPendingUseCase",
+                    operation = @Operation(
+                            operationId = "getCreditApplicationsPending",
+                            summary = "Obtiene solicitudes de crédito pendientes con filtros de paginación",
+                            tags = {"Solicitudes de Crédito"},
+                            requestBody = @RequestBody(
+                                    description = "Filtros de paginación para la solicitud",
+                                    required = true,
+                                    content = @Content(
+                                            schema = @Schema(implementation = FilterSelectCreditApplicationDTO.class)
+                                    )
+                            ),
+                            responses = {
+                                    @ApiResponse(
+                                            responseCode = "200",
+                                            description = "Lista de solicitudes de crédito",
+                                            content = @Content(
+                                                    mediaType = "application/json",
+                                                    schema = @Schema(implementation = GenericResponseDto.class)
+                                            )
+                                    ),
+                                    @ApiResponse(responseCode = "400", description = "Parámetros de filtro inválidos"),
+                                    @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(POST(applicationPath.getApplications()), handler::listenPOSTUseCase);
+        return route(POST(applicationPath.getApplications()), handler::listenPOSTUseCase)
+                .andRoute(POST(applicationPath.getApplicationsPending()), handler::listenPOSTFindAllPendingUseCase);
     }
 
 }

@@ -29,10 +29,6 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
         String detail = ex.getMessage();
 
-        if (ex instanceof IllegalArgumentException) {
-            status = HttpStatus.BAD_REQUEST;
-        }
-
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
