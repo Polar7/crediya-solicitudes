@@ -1,5 +1,6 @@
 server:
-  port: 8090
+  port: ${SERVER_PORT:8090}
+
 spring:
   application:
     name: "credit-aplication-microservice"
@@ -7,6 +8,7 @@ spring:
     add-properties: false
   profiles:
     include: null
+
 management:
   endpoints:
     web:
@@ -19,21 +21,23 @@ management:
   health:
     circuitbreakers:
       enabled: true
+
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
+
 adapter:
   restconsumer:
     timeout: 5000
-    url: "http://localhost:8080"
+    url: ${AUTH_SERVICE_URL}
 
 adapters:
   r2dbc:
-    host: "localhost"
-    port: 5432
-    database: "pragma_solicitudes"
-    schema: "public"
-    username: "postgres"
-    password: "postgres"
+    host: ${DB_HOST}
+    port: ${DB_PORT}
+    database: ${DB_NAME}
+    schema: ${DB_SCHEMA}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
 
 resilience4j:
   circuitbreaker:
@@ -64,4 +68,4 @@ routes:
 
 jwt:
   token:
-    secret-key: mi_clave_super_segura_1234567890!@#
+    secret-key: ${JWT_SECRET}
