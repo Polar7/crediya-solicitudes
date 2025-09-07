@@ -3,6 +3,7 @@ package co.com.pragma.creditapplication.r2dbc;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
+import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
 import co.com.pragma.creditapplication.r2dbc.crud.CreditApplicationReactiveRepository;
 import co.com.pragma.creditapplication.r2dbc.entity.CreditApplicationEntity;
 import co.com.pragma.creditapplication.r2dbc.helper.ReactiveAdapterOperations;
@@ -14,6 +15,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Repository
 public class CreditApplicationReactiveRepositoryAdapter extends ReactiveAdapterOperations<
@@ -65,6 +67,14 @@ public class CreditApplicationReactiveRepositoryAdapter extends ReactiveAdapterO
     }
 
     private DatabaseClient.GenericExecuteSpec applyFiltersPendingApplications(DatabaseClient.GenericExecuteSpec spec, String emailClient, String loanTypeName) {
+        List<String> statusNames = List.of(
+                LoanStatusEnum.REJECTED.getName(),
+                LoanStatusEnum.PENDING_REVIEW.getName(),
+                LoanStatusEnum.MANUAL_REVIEW.getName()
+        );
+
+        spec = spec.bind("statusNames", statusNames);
+
         if (emailClient != null) {
             spec = spec.bind("emailClient", emailClient);
         } else {

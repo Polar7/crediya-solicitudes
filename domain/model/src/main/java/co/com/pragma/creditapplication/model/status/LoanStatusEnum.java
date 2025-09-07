@@ -7,7 +7,8 @@ public enum LoanStatusEnum {
 
     PENDING_REVIEW("PENDIENTE"),
     APPROVED("APROBADO"),
-    REJECTED("RECHAZADO");
+    REJECTED("RECHAZADO"),
+    MANUAL_REVIEW("REVISION MANUAL");
 
     private final String name;
 

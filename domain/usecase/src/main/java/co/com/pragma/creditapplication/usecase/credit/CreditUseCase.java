@@ -55,6 +55,7 @@ public class CreditUseCase {
                 .distinct()
                 .collectList()
                 .flatMap(clientFeign::findClientsByEmails)
+                .onErrorResume(throwable -> Mono.just(List.of()))
                 .flatMapMany(Flux::fromIterable)
                 .collectMap(ClientInfo::email);
 
