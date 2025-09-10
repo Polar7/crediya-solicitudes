@@ -3,6 +3,7 @@ package co.com.pragma.creditapplication.api;
 import co.com.pragma.creditapplication.api.dto.CreateCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.FilterSelectCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.GenericResponseDto;
+import co.com.pragma.creditapplication.api.dto.ProcessApplicationDecisionDTO;
 import co.com.pragma.creditapplication.api.mapper.CreditApplicationMapper;
 import co.com.pragma.creditapplication.usecase.credit.CreditUseCase;
 import co.com.pragma.creditapplication.validation.ValidationUtil;
@@ -29,7 +30,7 @@ public class Handler {
 
     private final CreditApplicationMapper creditApplicationMapper;
 
-    public Mono<ServerResponse> listenPOSTUseCase(ServerRequest serverRequest) {
+    public Mono<ServerResponse> listenPOSTCreateCreditApplicationUseCase(ServerRequest serverRequest) {
         log.info("Received POST request create credit application");
 
         return serverRequest.principal()
@@ -52,6 +53,17 @@ public class Handler {
                 .switchIfEmpty(ServerResponse.status(HttpStatus.UNAUTHORIZED).build());
     }
 
+    public Mono<ServerResponse> listenPUTApproveRejectManuallyCreditApplicationUseCase(ServerRequest serverRequest) {
+        log.info("Received PUT Approve or REJECT credit application");
+
+        return serverRequest.bodyToMono(ProcessApplicationDecisionDTO.class)
+                .flatMap(validationUtil::validate)
+                .flatMap(decisionDto -> creditUseCase.approveRejectManuallyApplicationStatus(decisionDto.idCreditApplication(), decisionDto.status()))
+                .doOnSuccess(messageConfirm -> log.info("List found successfully {}", messageConfirm))
+                .map(messageConfirm -> GenericResponseDto.of(HttpStatus.OK.value(), "OK", messageConfirm))
+                .flatMap(response -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).bodyValue(response));
+    }
+
     public Mono<ServerResponse> listenPOSTFindAllPendingUseCase(ServerRequest serverRequest) {
         log.info("Received POST request Get all credit applications pending by filters");
 
@@ -60,9 +72,7 @@ public class Handler {
                 .flatMap(filters -> creditUseCase.getAllCreditApplicationsPendingByFilters(filters.emailClient(), filters.loanTypeName(), filters.page(), filters.size()))
                 .doOnSuccess(aVoid -> log.info("List found successfully"))
                 .map(pageList -> GenericResponseDto.of(HttpStatus.OK.value(), "OK", pageList))
-                .flatMap(response -> ServerResponse.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(response));
+                .flatMap(response -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).bodyValue(response));
     }
 
 }

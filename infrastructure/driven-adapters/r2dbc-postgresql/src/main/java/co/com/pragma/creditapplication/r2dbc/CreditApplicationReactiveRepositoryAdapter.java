@@ -11,6 +11,7 @@ import co.com.pragma.creditapplication.r2dbc.queries.QueriesCreditApplication;
 import org.reactivecommons.utils.ObjectMapper;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,9 +28,17 @@ public class CreditApplicationReactiveRepositoryAdapter extends ReactiveAdapterO
 
     private final DatabaseClient databaseClient;
 
-    public CreditApplicationReactiveRepositoryAdapter(CreditApplicationReactiveRepository repository, ObjectMapper mapper, DatabaseClient databaseClient) {
+    private final TransactionalOperator transactionalOperator;
+
+    public CreditApplicationReactiveRepositoryAdapter(CreditApplicationReactiveRepository repository, ObjectMapper mapper, DatabaseClient databaseClient, TransactionalOperator transactionalOperator) {
         super(repository, mapper, d -> mapper.map(d, CreditApplication.class));
         this.databaseClient = databaseClient;
+        this.transactionalOperator = transactionalOperator;
+    }
+
+    @Override
+    public Mono<Integer> updateStatus(Long id, String statusName) {
+        return repository.updateStatusBySolicitudIdAndStatusDescription(id, statusName).as(transactionalOperator::transactional);
     }
 
     @Override

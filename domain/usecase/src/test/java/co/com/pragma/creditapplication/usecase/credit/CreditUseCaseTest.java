@@ -6,6 +6,7 @@ import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
+import co.com.pragma.creditapplication.model.creditapplication.gateways.ProducerMessagingBroker;
 import co.com.pragma.creditapplication.model.loantype.LoanType;
 import co.com.pragma.creditapplication.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
@@ -13,6 +14,7 @@ import co.com.pragma.creditapplication.model.status.Status;
 import co.com.pragma.creditapplication.model.status.gateways.StatusRepository;
 import co.com.pragma.creditapplication.usecase.exception.NotFoundException;
 import co.com.pragma.creditapplication.usecase.exception.SelfServiceViolationException;
+import co.com.pragma.creditapplication.usecase.exception.StatusException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,9 @@ class CreditUseCaseTest {
 
     @Mock
     ClientFeign clientFeign;
+
+    @Mock
+    ProducerMessagingBroker producerMessagingBroker;
 
     CreditApplication validCreditApplication;
 
@@ -219,6 +224,49 @@ class CreditUseCaseTest {
                         return true;
                     })
                     .verifyComplete();
+        }
+
+    }
+
+    @Nested
+    class ApproveRejectApplicationStatus {
+
+        @Test
+        void shouldThrowExceptionWhenStatusNotValid() {
+            StepVerifier.create(creditUseCase.approveRejectManuallyApplicationStatus(1L, "NOT-EXIST"))
+                    .expectErrorMatches(throwable ->
+                            throwable instanceof StatusException &&
+                                    throwable.getMessage().equals("Only APPROVED and REJECTED are accepted."))
+                    .verify();
+
+            verify(producerMessagingBroker, never()).sendMessageUpdateCreditApplication(anyLong(), anyString(), anyString());
+        }
+
+        @Test
+        void shouldThrowExceptionWhenNotExistsCreditApplication() {
+            when(creditApplicationRepository.updateStatus(anyLong(), anyString())).thenReturn(Mono.just(0));
+            when(creditApplicationRepository.findById(anyLong())).thenReturn(Mono.empty());
+
+            StepVerifier.create(creditUseCase.approveRejectManuallyApplicationStatus(1L, LoanStatusEnum.APPROVED.getName()))
+                    .expectErrorMatches(throwable ->
+                            throwable instanceof NotFoundException &&
+                                    throwable.getMessage().equals("Credit application not found"))
+                    .verify();
+
+            verify(producerMessagingBroker, never()).sendMessageUpdateCreditApplication(anyLong(), anyString(), anyString());
+        }
+
+        @Test
+        void shouldEnqueueSuccessfully() {
+            when(creditApplicationRepository.updateStatus(anyLong(), anyString())).thenReturn(Mono.just(1));
+            when(creditApplicationRepository.findById(anyLong())).thenReturn(Mono.just(validCreditApplication));
+            when(producerMessagingBroker.sendMessageUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName())).thenReturn(Mono.just("OK"));
+
+            StepVerifier.create(creditUseCase.approveRejectManuallyApplicationStatus(1L, LoanStatusEnum.APPROVED.getName()))
+                    .expectNext("Update status successful")
+                    .verifyComplete();
+
+            verify(producerMessagingBroker).sendMessageUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName());
         }
 
     }

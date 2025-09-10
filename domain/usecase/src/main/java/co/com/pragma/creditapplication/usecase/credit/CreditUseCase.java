@@ -5,6 +5,7 @@ import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
+import co.com.pragma.creditapplication.model.creditapplication.gateways.ProducerMessagingBroker;
 import co.com.pragma.creditapplication.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.creditapplication.model.page.Page;
 import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
@@ -12,6 +13,7 @@ import co.com.pragma.creditapplication.model.status.Status;
 import co.com.pragma.creditapplication.model.status.gateways.StatusRepository;
 import co.com.pragma.creditapplication.usecase.exception.NotFoundException;
 import co.com.pragma.creditapplication.usecase.exception.SelfServiceViolationException;
+import co.com.pragma.creditapplication.usecase.exception.StatusException;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -33,6 +35,8 @@ public class CreditUseCase {
 
     private final ClientFeign clientFeign;
 
+    private final ProducerMessagingBroker producerMessagingBroker;
+
     public Mono<String> createCreditApplication(CreditApplication creditApplication) {
         return validateLoanType(creditApplication.getLoanTypeId())
                 .then(Mono.defer(() -> validateUser(creditApplication.getDocNumberClient(), creditApplication.getIdClient())))
@@ -45,6 +49,19 @@ public class CreditUseCase {
                     return creditApplicationRepository.save(creditApplication);
                 })
                 .thenReturn("Credit application successfully created.");
+    }
+
+    public Mono<String> approveRejectManuallyApplicationStatus(Long idCreditApplication, String status) {
+        if (!status.equals(LoanStatusEnum.APPROVED.getName()) && !status.equals(LoanStatusEnum.REJECTED.getName())) {
+            return Mono.error(new StatusException("Only APPROVED and REJECTED are accepted."));
+        }
+
+        return creditApplicationRepository.updateStatus(idCreditApplication, status)
+                .filter(rows -> rows > 0)
+                .switchIfEmpty(Mono.error(new NotFoundException("Credit application not found")))
+                .then(creditApplicationRepository.findById(idCreditApplication))
+                .flatMap(creditApplicationEdited -> producerMessagingBroker.sendMessageUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status))
+                .thenReturn("Update status successful");
     }
 
     public Mono<Page<SelectCreditApplication>> getAllCreditApplicationsPendingByFilters(String emailClient, String loanTypeName, int page, int size) {
@@ -129,7 +146,7 @@ public class CreditUseCase {
                     List<SelectCreditApplication> applications = tuple.getT1();
                     Map<String, ClientInfo> clientsByEmail = tuple.getT2();
 
-                    applications.forEach(application -> {
+                    applications.parallelStream().forEach(application -> {
                         String email = application.getEmailClient();
 
                         ClientInfo client = clientsByEmail.get(email);

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -33,7 +34,8 @@ public class WebSecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .pathMatchers("/api/v1/solicitudes").hasRole(RolEnum.CLIENT.getName())
+                        .pathMatchers(HttpMethod.POST, "/api/v1/solicitudes").hasRole(RolEnum.CLIENT.getName())
+                        .pathMatchers(HttpMethod.PUT, "/api/v1/solicitudes").hasRole(RolEnum.BANKER.getName())
                         .pathMatchers("/api/v1/solicitudes/pendientes").hasRole(RolEnum.BANKER.getName())
                         .anyExchange().authenticated()
                 )

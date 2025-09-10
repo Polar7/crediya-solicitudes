@@ -7,10 +7,15 @@ import reactor.core.publisher.Mono;
 
 public interface CreditApplicationRepository {
 
+    Mono<CreditApplication> findById(Long id);
+
     Mono<CreditApplication> save(CreditApplication creditApplication);
+
+    Mono<Integer> updateStatus(Long id, String statusName);
 
     Flux<SelectCreditApplication> findAllPendingByFiltersPaged(String emailClient, String loanTypeName, int page, int size);
 
     Mono<Long> countAllPendingByFilters(String emailClient, String loanTypeName);
+
 
 }

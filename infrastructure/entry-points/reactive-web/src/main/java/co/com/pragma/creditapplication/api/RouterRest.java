@@ -4,6 +4,7 @@ import co.com.pragma.creditapplication.api.config.ApplicationPath;
 import co.com.pragma.creditapplication.api.dto.CreateCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.FilterSelectCreditApplicationDTO;
 import co.com.pragma.creditapplication.api.dto.GenericResponseDto;
+import co.com.pragma.creditapplication.api.dto.ProcessApplicationDecisionDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -18,7 +19,9 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
+import static org.springframework.web.bind.annotation.RequestMethod.PUT;
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
+import static org.springframework.web.reactive.function.server.RequestPredicates.PUT;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
 @Configuration
@@ -86,10 +89,42 @@ public class RouterRest {
                                     @ApiResponse(responseCode = "500", description = "Error interno del servidor")
                             }
                     )
+            ),
+            @RouterOperation(path = "/api/v1/solicitudes",
+                    produces = "application/json",
+                    method = PUT,
+                    beanClass = Handler.class,
+                    beanMethod = "listenPUTApproveRejectCreditApplicationUseCase",
+                    operation = @Operation(
+                            operationId = "decideApplicationStatus",
+                            summary = "Aprueba o rechaza una solicitud de crédito",
+                            tags = {"Solicitudes de Crédito"},
+                            requestBody = @RequestBody(
+                                    description = "Datos para aprobar o rechazar la solicitud",
+                                    required = true,
+                                    content = @Content(
+                                            schema = @Schema(implementation = ProcessApplicationDecisionDTO.class)
+                                    )
+                            ),
+                            responses = {
+                                    @ApiResponse(
+                                            responseCode = "200",
+                                            description = "Estado de la solicitud actualizado exitosamente",
+                                            content = @Content(
+                                                    mediaType = "application/json",
+                                                    schema = @Schema(implementation = GenericResponseDto.class)
+                                            )
+                                    ),
+                                    @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+                                    @ApiResponse(responseCode = "404", description = "Solicitud no encontrada"),
+                                    @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(POST(applicationPath.getApplications()), handler::listenPOSTUseCase)
+        return route(POST(applicationPath.getApplications()), handler::listenPOSTCreateCreditApplicationUseCase)
+                .andRoute(PUT(applicationPath.getApplications()), handler::listenPUTApproveRejectManuallyCreditApplicationUseCase)
                 .andRoute(POST(applicationPath.getApplicationsPending()), handler::listenPOSTFindAllPendingUseCase);
     }
 
