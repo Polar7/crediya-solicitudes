@@ -2,6 +2,7 @@ package co.com.pragma.creditapplication.model.creditapplication.gateways;
 
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
+import co.com.pragma.creditapplication.model.creditapplication.SelectCreditsApproved;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,5 +18,6 @@ public interface CreditApplicationRepository {
 
     Mono<Long> countAllPendingByFilters(String emailClient, String loanTypeName);
 
+    Flux<SelectCreditsApproved> findAllCreditsApprovedByClient(String emailClient);
 
 }

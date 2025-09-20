@@ -94,9 +94,9 @@ public class RouterRest {
                     produces = "application/json",
                     method = PUT,
                     beanClass = Handler.class,
-                    beanMethod = "listenPUTApproveRejectCreditApplicationUseCase",
+                    beanMethod = "listenPUTApproveRejectManuallyCreditApplicationUseCase",
                     operation = @Operation(
-                            operationId = "decideApplicationStatus",
+                            operationId = "approveRejectManuallyApplicationStatus",
                             summary = "Aprueba o rechaza una solicitud de crédito",
                             tags = {"Solicitudes de Crédito"},
                             requestBody = @RequestBody(

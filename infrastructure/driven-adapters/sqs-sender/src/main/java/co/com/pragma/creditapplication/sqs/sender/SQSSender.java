@@ -1,20 +1,28 @@
 package co.com.pragma.creditapplication.sqs.sender;
 
+import co.com.pragma.creditapplication.model.creditapplication.NewApplicationInformation;
+import co.com.pragma.creditapplication.model.creditapplication.PaymentPlan;
+import co.com.pragma.creditapplication.model.creditapplication.SelectCreditsApproved;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.ProducerMessagingBroker;
 import co.com.pragma.creditapplication.sqs.sender.config.SQSSenderProperties;
-import co.com.pragma.creditapplication.sqs.sender.dto.SendEmailUpdateCreditApplicationMessage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import co.com.pragma.creditapplication.sqs.sender.dto.CalculateDebtCapacityMessage;
+import co.com.pragma.creditapplication.sqs.sender.dto.EmailUpdateCreditApplicationMessage;
+import co.com.pragma.creditapplication.model.creditapplication.InitFlowAutomaticValidationEmailMessage;
+import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 @Service
-@Log4j2
+@Slf4j
 @RequiredArgsConstructor
 public class SQSSender implements ProducerMessagingBroker {
 
@@ -22,27 +30,41 @@ public class SQSSender implements ProducerMessagingBroker {
 
     private final SqsAsyncClient client;
 
-    private final ObjectMapper objectMapper;
+    private final Gson gson;
 
     @Override
-    public Mono<String> sendMessageUpdateCreditApplication(Long idApplication, String emailClient, String statusName) {
-        try {
-            return send(objectMapper.writeValueAsString(new SendEmailUpdateCreditApplicationMessage(idApplication, emailClient, statusName)));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error serializing message", e);
-        }
+    public Mono<Void> sendUpdateCreditApplication(Long idApplication, String emailClient, String statusName, List<PaymentPlan> paymentPlans) {
+        log.info("SQSSender sendUpdateCreditApplication");
+        var jsonMessage = gson.toJson(new EmailUpdateCreditApplicationMessage(idApplication, emailClient, statusName, paymentPlans));
+        return send(jsonMessage, properties.queueEmailUpdateStatusCreditApplicationUrl()).then();
     }
 
-    private Mono<String> send(String message) {
-        return Mono.fromCallable(() -> buildRequest(message))
+    @Override
+    public Mono<Void> sendInitFlowAutomaticValidation(String emailClient, BigDecimal salaryClient, NewApplicationInformation newApplicationInformation) {
+        log.info("SQSSender sendInitFlowAutomaticValidation");
+        var jsonMessage = gson.toJson(new InitFlowAutomaticValidationEmailMessage(emailClient, salaryClient, newApplicationInformation));
+        return send(jsonMessage, properties.queueInitFlowAutomaticValidationUrl()).then();
+    }
+
+    @Override
+    public Mono<Void> sendCalculateDebtCapacity(List<SelectCreditsApproved> listCreditsApproved, BigDecimal salaryClient, NewApplicationInformation newApplicationInformation) {
+        log.info("SQSSender sendCalculateDebtCapacity");
+        var jsonMessage = gson.toJson(new CalculateDebtCapacityMessage(listCreditsApproved, salaryClient, newApplicationInformation));
+        return send(jsonMessage, properties.queueCalculateDebtCapacityUrl()).then();
+    }
+
+    private Mono<String> send(String message, String queueUrl) {
+        log.info("Message to send {}", message);
+        return Mono.fromCallable(() -> buildRequest(message, queueUrl))
                 .flatMap(request -> Mono.fromFuture(client.sendMessage(request)))
                 .doOnNext(response -> log.debug("Message sent {}", response.messageId()))
+                .doOnError(error -> log.error("Error sending message {}", error.getMessage()))
                 .map(SendMessageResponse::messageId);
     }
 
-    private SendMessageRequest buildRequest(String message) {
+    private SendMessageRequest buildRequest(String message, String queueUrl) {
         return SendMessageRequest.builder()
-                .queueUrl(properties.queueUrl())
+                .queueUrl(queueUrl)
                 .messageBody(message)
                 .build();
     }

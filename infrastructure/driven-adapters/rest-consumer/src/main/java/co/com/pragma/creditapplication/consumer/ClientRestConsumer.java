@@ -32,7 +32,7 @@ public class ClientRestConsumer implements ClientFeign {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtToken)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<GenericResponseFeignDTO<ValidatedClient>>() {})
-                    .map(dto -> new ValidatedClient(dto.detail().found(), dto.detail().id(), dto.detail().email()));
+                    .map(dto -> new ValidatedClient(dto.detail().found(), dto.detail().id(), dto.detail().email(), dto.detail().salary()));
         });
     }
 

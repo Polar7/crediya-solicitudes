@@ -11,10 +11,12 @@ import java.math.BigDecimal;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class DebtMonthProjection {
+public class SelectCreditsApproved {
 
-    private String email;
+    private BigDecimal amount;
 
-    private BigDecimal totalDebt;
+    private Integer term;
+
+    private Double interestRate;
 
 }

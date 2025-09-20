@@ -1,11 +1,14 @@
 package co.com.pragma.creditapplication.usecase.credit;
 
 import co.com.pragma.creditapplication.model.client.ClientInfo;
+import co.com.pragma.creditapplication.model.client.ValidatedClient;
 import co.com.pragma.creditapplication.model.client.gateways.ClientFeign;
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
+import co.com.pragma.creditapplication.model.creditapplication.NewApplicationInformation;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.ProducerMessagingBroker;
+import co.com.pragma.creditapplication.model.loantype.LoanType;
 import co.com.pragma.creditapplication.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.creditapplication.model.page.Page;
 import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
@@ -17,6 +20,7 @@ import co.com.pragma.creditapplication.usecase.exception.StatusException;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -39,14 +43,25 @@ public class CreditUseCase {
 
     public Mono<String> createCreditApplication(CreditApplication creditApplication) {
         return validateLoanType(creditApplication.getLoanTypeId())
-                .then(Mono.defer(() -> validateUser(creditApplication.getDocNumberClient(), creditApplication.getIdClient())))
-                .flatMap(email -> {
-                    creditApplication.setEmailClient(email);
-                    return getPendingStatusId();
-                })
-                .flatMap(statusId -> {
+                .zipWhen(loanType -> validateUser(creditApplication.getDocNumberClient(), creditApplication.getIdClient()))
+                .zipWhen(tuple -> getPendingStatusId())
+                .flatMap(tuple -> {
+                    LoanType loanType = tuple.getT1().getT1();
+                    ValidatedClient validateClient = tuple.getT1().getT2();
+                    Long statusId = tuple.getT2();
+
+                    creditApplication.setEmailClient(validateClient.email());
                     creditApplication.setStatusId(statusId);
-                    return creditApplicationRepository.save(creditApplication);
+
+                    return creditApplicationRepository.save(creditApplication)
+                            .flatMap(saved -> {
+                                if (loanType.isAutomaticValidation()) {
+                                    return producerMessagingBroker.sendInitFlowAutomaticValidation(saved.getEmailClient(),
+                                            validateClient.salary(),
+                                            new NewApplicationInformation(saved.getId(), saved.getAmount(), saved.getTerm(), loanType.getInterestRate())); //  Todo extraer a metodo
+                                }
+                                return Mono.empty();
+                            });
                 })
                 .thenReturn("Credit application successfully created.");
     }
@@ -60,7 +75,7 @@ public class CreditUseCase {
                 .filter(rows -> rows > 0)
                 .switchIfEmpty(Mono.error(new NotFoundException("Credit application not found")))
                 .then(creditApplicationRepository.findById(idCreditApplication))
-                .flatMap(creditApplicationEdited -> producerMessagingBroker.sendMessageUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status))
+                .flatMap(creditApplicationEdited -> producerMessagingBroker.sendUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status, null))
                 .thenReturn("Update status successful");
     }
 
@@ -89,13 +104,12 @@ public class CreditUseCase {
                 });
     }
 
-    private Mono<Void> validateLoanType(Long loanTypeId) {
+    private Mono<LoanType> validateLoanType(Long loanTypeId) {
         return loanTypeRepository.findById(loanTypeId)
-                .switchIfEmpty(Mono.error(new NotFoundException("Loan type not found")))
-                .then();
+                .switchIfEmpty(Mono.error(new NotFoundException("Loan type not found")));
     }
 
-    private Mono<String> validateUser(String docNumberClient, Long idClient) {
+    private Mono<ValidatedClient> validateUser(String docNumberClient, Long idClient) {
         return clientFeign.findByDocNumberClient(docNumberClient)
                 .flatMap(userExist -> {
                     if (!userExist.found()) {
@@ -106,7 +120,7 @@ public class CreditUseCase {
                         return Mono.error(new SelfServiceViolationException("Only the holder can create the credit application."));
                     }
 
-                    return Mono.just(userExist.email());
+                    return Mono.just(userExist);
                 });
     }
 

@@ -67,7 +67,7 @@ class CreditUseCaseTest {
                 .loanTypeId(1L)
                 .build();
 
-        validLoanType = new LoanType(1L, "Consumo", new BigDecimal(500000), new BigDecimal(50000000), 23.0);
+        validLoanType = new LoanType(1L, "Consumo", new BigDecimal(500000), new BigDecimal(50000000), 23.0, true);
     }
 
     @Nested
@@ -76,7 +76,7 @@ class CreditUseCaseTest {
         @Test
         void shouldCreateCreditApplication() {
             when(loanTypeRepository.findById(validCreditApplication.getLoanTypeId())).thenReturn(Mono.just(validLoanType));
-            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, validCreditApplication.getIdClient(), "email-valid@pragma.com")));
+            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, validCreditApplication.getIdClient(), "email-valid@pragma.com", new BigDecimal(100))));
             when(statusRepository.findByName(LoanStatusEnum.PENDING_REVIEW.getName())).thenReturn(Mono.just(new Status(1L, "PENDIENTE", "Revision pendiente por parte del asesor")));
             when(creditApplicationRepository.save(any(CreditApplication.class))).thenReturn(Mono.just(validCreditApplication));
 
@@ -110,7 +110,7 @@ class CreditUseCaseTest {
         @Test
         void shouldThrowExceptionWhenUserNotExists() {
             when(loanTypeRepository.findById(validCreditApplication.getLoanTypeId())).thenReturn(Mono.just(validLoanType));
-            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(false, null, null)));
+            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(false, null, null, null)));
 
             StepVerifier.create(creditUseCase.createCreditApplication(validCreditApplication))
                     .expectErrorMatches(throwable ->
@@ -127,7 +127,7 @@ class CreditUseCaseTest {
         @Test
         void shouldThrowExceptionWhenUserNotPermissions() {
             when(loanTypeRepository.findById(validCreditApplication.getLoanTypeId())).thenReturn(Mono.just(validLoanType));
-            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, 9999L, "email-valid@pragma.com")));
+            when(clientFeign.findByDocNumberClient(validCreditApplication.getDocNumberClient())).thenReturn(Mono.just(new ValidatedClient(true, 9999L, "email-valid@pragma.com", new BigDecimal(100))));
 
             StepVerifier.create(creditUseCase.createCreditApplication(validCreditApplication))
                     .expectErrorMatches(throwable ->
@@ -144,7 +144,7 @@ class CreditUseCaseTest {
         @Test
         void shouldThrowExceptionWhenPendingStatusNotFound() {
             when(loanTypeRepository.findById(anyLong())).thenReturn(Mono.just(new LoanType()));
-            when(clientFeign.findByDocNumberClient(anyString())).thenReturn(Mono.just(new ValidatedClient(true, 1L, "test@email.com")));
+            when(clientFeign.findByDocNumberClient(anyString())).thenReturn(Mono.just(new ValidatedClient(true, 1L, "test@email.com", new BigDecimal(100))));
             when(statusRepository.findByName(anyString())).thenReturn(Mono.empty());
 
             StepVerifier.create(creditUseCase.createCreditApplication(validCreditApplication))
@@ -239,7 +239,7 @@ class CreditUseCaseTest {
                                     throwable.getMessage().equals("Only APPROVED and REJECTED are accepted."))
                     .verify();
 
-            verify(producerMessagingBroker, never()).sendMessageUpdateCreditApplication(anyLong(), anyString(), anyString());
+            verify(producerMessagingBroker, never()).sendUpdateCreditApplication(anyLong(), anyString(), anyString(), anyList());
         }
 
         @Test
@@ -253,20 +253,20 @@ class CreditUseCaseTest {
                                     throwable.getMessage().equals("Credit application not found"))
                     .verify();
 
-            verify(producerMessagingBroker, never()).sendMessageUpdateCreditApplication(anyLong(), anyString(), anyString());
+            verify(producerMessagingBroker, never()).sendUpdateCreditApplication(anyLong(), anyString(), anyString(), anyList());
         }
 
         @Test
         void shouldEnqueueSuccessfully() {
             when(creditApplicationRepository.updateStatus(anyLong(), anyString())).thenReturn(Mono.just(1));
             when(creditApplicationRepository.findById(anyLong())).thenReturn(Mono.just(validCreditApplication));
-            when(producerMessagingBroker.sendMessageUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName())).thenReturn(Mono.just("OK"));
+            when(producerMessagingBroker.sendUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName(), List.of())).thenReturn(Mono.empty());
 
             StepVerifier.create(creditUseCase.approveRejectManuallyApplicationStatus(1L, LoanStatusEnum.APPROVED.getName()))
                     .expectNext("Update status successful")
                     .verifyComplete();
 
-            verify(producerMessagingBroker).sendMessageUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName());
+            verify(producerMessagingBroker).sendUpdateCreditApplication(validCreditApplication.getId(), validCreditApplication.getEmailClient(), LoanStatusEnum.APPROVED.getName(), List.of());
         }
 
     }

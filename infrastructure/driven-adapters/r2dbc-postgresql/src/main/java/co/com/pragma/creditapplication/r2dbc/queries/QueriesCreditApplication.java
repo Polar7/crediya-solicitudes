@@ -28,4 +28,22 @@ public class QueriesCreditApplication {
         AND (:loanTypeName IS NULL OR lt.nombre = :loanTypeName)
         """;
 
+    public static final String UPDATE_STATUS_BY_APPLICATIONID_AND_STATUSDESCRIPTION = """
+            UPDATE solicitud
+            SET id_estado = s.id_estado
+            FROM estados s
+            WHERE solicitud.id_solicitud = :idSolicitud
+              AND s.nombre = :statusName
+            """;
+
+    public static final String FIND_ALL_BY_EMAIL_CLIENT_AND_STATUS_NAME = """
+            SELECT s.monto AS amount,
+                   s.plazo AS term,
+                   t.tasa_interes AS interesrate
+            FROM solicitud s
+            JOIN estados e ON s.id_estado = e.id_estado
+            JOIN tipo_prestamo t on s.id_tipo_prestamo = t.id_tipo_prestamo
+            WHERE s.email = :emailClient
+              AND e.nombre = :statusName
+            """;
 }

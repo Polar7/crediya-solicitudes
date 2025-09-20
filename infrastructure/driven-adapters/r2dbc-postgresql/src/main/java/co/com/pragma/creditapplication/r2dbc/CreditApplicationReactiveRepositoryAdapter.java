@@ -2,6 +2,7 @@ package co.com.pragma.creditapplication.r2dbc;
 
 import co.com.pragma.creditapplication.model.creditapplication.CreditApplication;
 import co.com.pragma.creditapplication.model.creditapplication.SelectCreditApplication;
+import co.com.pragma.creditapplication.model.creditapplication.SelectCreditsApproved;
 import co.com.pragma.creditapplication.model.creditapplication.gateways.CreditApplicationRepository;
 import co.com.pragma.creditapplication.model.status.LoanStatusEnum;
 import co.com.pragma.creditapplication.r2dbc.crud.CreditApplicationReactiveRepository;
@@ -38,7 +39,7 @@ public class CreditApplicationReactiveRepositoryAdapter extends ReactiveAdapterO
 
     @Override
     public Mono<Integer> updateStatus(Long id, String statusName) {
-        return repository.updateStatusBySolicitudIdAndStatusDescription(id, statusName).as(transactionalOperator::transactional);
+        return repository.updateStatusByApplicationIdAndStatusDescription(id, statusName).as(transactionalOperator::transactional);
     }
 
     @Override
@@ -73,6 +74,22 @@ public class CreditApplicationReactiveRepositoryAdapter extends ReactiveAdapterO
         genericExecuteSpec = applyFiltersPendingApplications(genericExecuteSpec, emailClient, loanTypeName);
 
         return genericExecuteSpec.map((row, metadata) -> row.get(0, Long.class)).one();
+    }
+
+    @Override
+    public Flux<SelectCreditsApproved> findAllCreditsApprovedByClient(String emailClient) {
+        DatabaseClient.GenericExecuteSpec genericExecuteSpec =
+                databaseClient.sql(QueriesCreditApplication.FIND_ALL_BY_EMAIL_CLIENT_AND_STATUS_NAME);
+
+        return genericExecuteSpec
+                .bind("emailClient", emailClient)
+                .bind("statusName", LoanStatusEnum.APPROVED.getName())
+                .map((row, metadata) -> new SelectCreditsApproved(
+                        row.get("amount", BigDecimal.class),
+                        row.get("term", Integer.class),
+                        row.get("interesrate", Double.class)
+                ))
+                .all();
     }
 
     private DatabaseClient.GenericExecuteSpec applyFiltersPendingApplications(DatabaseClient.GenericExecuteSpec spec, String emailClient, String loanTypeName) {

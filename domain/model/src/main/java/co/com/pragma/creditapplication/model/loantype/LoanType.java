@@ -24,4 +24,6 @@ public class LoanType {
 
     private Double interestRate;
 
+    private boolean automaticValidation;
+
 }

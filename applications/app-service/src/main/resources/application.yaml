@@ -26,8 +26,10 @@ adapter:
     timeout: 5000
     url: "${AUTH_SERVICE_URL}"
   sqs:
-    region: "us-east-2"
-    queueUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/queue-credit-applications"
+    region: ${AWS_REGION}
+    queueEmailUpdateStatusCreditApplicationUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/notificationsEmail"
+    queueInitFlowAutomaticValidationUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/init-flow-automatic-validation"
+    queueCalculateDebtCapacityUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/calculate-debt-capacity"
 adapters:
   r2dbc:
     host: "${DB_HOST}"
@@ -64,3 +66,12 @@ routes:
 jwt:
   token:
     secret-key: "${JWT_SECRET}"
+entrypoint:
+  sqs:
+    region: ${AWS_REGION}
+    queueInitFlowAutomaticValidationUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/init-flow-automatic-validation"
+    queueCalculateDebtCapacityResponseUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/calculate-debt-capacity-response"
+    waitTimeSeconds: 20
+    maxNumberOfMessages: 10
+    visibilityTimeoutSeconds: 10
+    numberOfThreads: 1

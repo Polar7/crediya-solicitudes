@@ -37,4 +37,7 @@ public class LoanTypeEntity {
     @Column("tasa_interes")
     private Double interestRate;
 
+    @Column("validacion_automatica")
+    private Boolean automaticValidation;
+
 }
