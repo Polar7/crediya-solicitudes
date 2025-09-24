@@ -8,9 +8,9 @@ import co.com.pragma.creditapplication.sqs.sender.config.SQSSenderProperties;
 import co.com.pragma.creditapplication.sqs.sender.dto.CalculateDebtCapacityMessage;
 import co.com.pragma.creditapplication.sqs.sender.dto.EmailUpdateCreditApplicationMessage;
 import co.com.pragma.creditapplication.model.creditapplication.InitFlowAutomaticValidationEmailMessage;
+import co.com.pragma.creditapplication.sqs.sender.dto.MetricCreditApproved;
 import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -51,6 +51,13 @@ public class SQSSender implements ProducerMessagingBroker {
         log.info("SQSSender sendCalculateDebtCapacity");
         var jsonMessage = gson.toJson(new CalculateDebtCapacityMessage(listCreditsApproved, salaryClient, newApplicationInformation));
         return send(jsonMessage, properties.queueCalculateDebtCapacityUrl()).then();
+    }
+
+    @Override
+    public Mono<Void> sendMetricCreditApproved(BigDecimal amountApproved) {
+        log.info("SQSSender sendMetricReportApproved");
+        var jsonMessage = gson.toJson(new MetricCreditApproved(amountApproved));
+        return send(jsonMessage, properties.queueMetricCreditApprovedUrl()).then();
     }
 
     private Mono<String> send(String message, String queueUrl) {

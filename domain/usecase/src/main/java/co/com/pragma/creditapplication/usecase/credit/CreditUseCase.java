@@ -75,7 +75,16 @@ public class CreditUseCase {
                 .filter(rows -> rows > 0)
                 .switchIfEmpty(Mono.error(new NotFoundException("Credit application not found")))
                 .then(creditApplicationRepository.findById(idCreditApplication))
-                .flatMap(creditApplicationEdited -> producerMessagingBroker.sendUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status, null))
+                .flatMap(creditApplicationEdited -> {
+                    Mono<Void> updateMono = producerMessagingBroker.sendUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status, null);
+
+                    Mono<Void> metricMono = Mono.empty();
+                    if (LoanStatusEnum.APPROVED.getName().equals(status) && creditApplicationEdited.getAmount() != null) {
+                        metricMono = producerMessagingBroker.sendMetricCreditApproved(creditApplicationEdited.getAmount());
+                    }
+
+                    return Mono.when(updateMono, metricMono);
+                })
                 .thenReturn("Update status successful");
     }
 

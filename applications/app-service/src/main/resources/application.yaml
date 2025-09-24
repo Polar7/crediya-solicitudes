@@ -30,6 +30,7 @@ adapter:
     queueEmailUpdateStatusCreditApplicationUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/notificationsEmail"
     queueInitFlowAutomaticValidationUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/init-flow-automatic-validation"
     queueCalculateDebtCapacityUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/calculate-debt-capacity"
+    queueMetricCreditApprovedUrl: "https://sqs.us-east-2.amazonaws.com/575108950970/metric-reports"
 adapters:
   r2dbc:
     host: "${DB_HOST}"

@@ -8,5 +8,6 @@ public record SQSSenderProperties(
      String queueEmailUpdateStatusCreditApplicationUrl,
      String queueInitFlowAutomaticValidationUrl,
      String queueCalculateDebtCapacityUrl,
+     String queueMetricCreditApprovedUrl,
      String endpoint){
 }

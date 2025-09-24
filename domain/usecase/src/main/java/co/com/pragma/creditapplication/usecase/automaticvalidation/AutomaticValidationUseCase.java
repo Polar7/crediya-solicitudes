@@ -35,7 +35,16 @@ public class AutomaticValidationUseCase {
                 .filter(rows -> rows > 0)
                 .switchIfEmpty(Mono.error(new NotFoundException("Credit application not found")))
                 .then(creditApplicationRepository.findById(idCreditApplication))
-                .flatMap(creditApplicationEdited -> producerMessagingBroker.sendUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status, paymentPlans))
+                .flatMap(creditApplicationEdited -> {
+                    Mono<Void> updateMono = producerMessagingBroker.sendUpdateCreditApplication(creditApplicationEdited.getId(), creditApplicationEdited.getEmailClient(), status, paymentPlans);
+
+                    Mono<Void> metricMono = Mono.empty();
+                    if (LoanStatusEnum.APPROVED.getName().equals(status)) {
+                        metricMono = producerMessagingBroker.sendMetricCreditApproved(creditApplicationEdited.getAmount());
+                    }
+
+                    return Mono.when(updateMono, metricMono);
+                })
                 .then();
     }
 

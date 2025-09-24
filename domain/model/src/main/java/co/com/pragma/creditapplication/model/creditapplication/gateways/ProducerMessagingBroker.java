@@ -16,4 +16,6 @@ public interface ProducerMessagingBroker {
 
     Mono<Void> sendCalculateDebtCapacity(List<SelectCreditsApproved> listCreditsApproved, BigDecimal salaryClient, NewApplicationInformation newApplicationInformation);
 
+    Mono<Void> sendMetricCreditApproved(BigDecimal amountApproved);
+
 }
